@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Registro de Asistencia</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+ :root{
+ --bg:#eef2f7; --card:#ffffff; --ink:#1b2432; --muted:#5b687c; --line:#dbe2ec; --brand:#1d5bb8; --brand-d:#164890; --soft:#e8f0fb;
+ --pres:#1f8a4c; --tarde:#c08400; --aus:#c3362e; --exc:#6a4bc0;
+ }
+ *{box-sizing:border-box}
+ body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sansserif;background:var(--bg);color:var(--ink);line-height:1.4}
+ .hidden{display:none!important}
+ button{font:inherit;cursor:pointer}
+ input{font:inherit}
+ /* ---------- Autenticación ---------- */
+ .auth-wrap{min-height:100vh;display:grid;place-items:center;padding:24px 16px} .auth{width:100%;max-width:400px;background:var(--card);border-radius:16px;boxshadow:0 10px 30px rgba(20,40,80,.12);overflow:hidden}
+ .auth-head{background:var(--brand);color:#fff;padding:24px 24px 20px}
+ .auth-head h1{margin:0;font-size:1.35rem}
+ .auth-head p{margin:4px 0 0;opacity:.85;font-size:.92rem}
+ .tabs{display:flex;border-bottom:1px solid var(--line)}
+ .tab{flex:1;background:none;border:0;padding:14px;color:var(--muted);fontweight:600;border-bottom:3px solid transparent}
+ .tab.activo{color:var(--brand);border-bottom-color:var(--brand)}
+ form.auth-form{padding:22px 24px 26px;display:grid;gap:14px}
+ label.campo{display:grid;gap:6px;font-size:.88rem;font-weight:600;color:var(--muted)}
+ label.campo input{padding:11px 12px;border:1px solid var(--line);borderradius:10px;color:var(--ink);background:#fbfcfe}
+ label.campo input:focus{outline:2px solid var(--brand);outline-offset:0;bordercolor:transparent}
+ .btn{border:0;border-radius:10px;padding:11px 16px;font-weight:600}
+ .btn-primario{background:var(--brand);color:#fff}
+ .btn-primario:hover{background:var(--brand-d)}
+ .btn-sec{background:var(--soft);color:var(--brand)}
+ .btn-sec:hover{background:#dbe7f8}
+ .btn-borde{background:transparent;border:1px solid rgba(255,255,255,.5);color:#fff} .btn:disabled{opacity:.6;cursor:wait}
+ .msg{margin:0 24px 0;padding:10px 12px;border-radius:10px;font-size:.9rem}
+ .msg.error{background:#fdecea;color:#9b2219}
+ .msg.ok{background:#e7f6ec;color:#17633a}
+ .msg.info{background:var(--soft);color:var(--brand-d)}
+ .config{margin:16px 24px 0;padding:12px;borderradius:10px;background:#fff6dd;color:#7a5600;font-size:.88rem}
+ /* ---------- Aplicación ---------- */
+ header.barra{background:var(--brand);color:#fff}
+ .barra-in{max-width:980px;margin:0 auto;padding:14px 16px;display:flex;alignitems:center;gap:12px;justify-content:space-between;flex-wrap:wrap}
+ .barra h1{margin:0;font-size:1.15rem}
+ .barra small{display:block;opacity:.85;font-size:.85rem}
+ main{max-width:980px;margin:0 auto;padding:18px 16px 60px}
+ .panel{background:var(--card);border-radius:14px;box-shadow:0 4px 16px
+rgba(20,40,80,.07);padding:16px}
+ .toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justifycontent:space-between}
+ .toolbar .campo{min-width:220px}
+ .acciones{display:flex;flex-wrap:wrap;gap:8px}
+ .fecha-larga{margin:10px 0 0;color:var(--muted);font-size:.92rem;texttransform:capitalize}
+ .resumen{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+ .chip{padding:6px 12px;border-radius:999px;font-size:.85rem;fontweight:600;background:#f1f4f8;color:var(--muted)}
+ .chip b{margin-left:4px}
+ .chip.presente{background:#e5f5ec;color:var(--pres)}
+ .chip.tarde{background:#fdf3d8;color:#8f6400}
+ .chip.ausente{background:#fbe7e5;color:var(--aus)}
+ .chip.excusa{background:#efeafb;color:var(--exc)}
+ #estado-msg{margin:14px 0 0}
+ .lista-head{display:grid;grid-template-columns:40px 1fr auto;gap:12px;padding:12px 16px 6px;font-size:.78rem;font-weight:700;color:var(--muted);texttransform:uppercase;letter-spacing:.04em}
+ #lista{display:grid}
+ .fila{display:grid;grid-template-columns:40px 1fr auto;gap:12px;alignitems:center;padding:8px 16px;border-top:1px solid var(--line)}
+ .fila.falta{background:#fff4f2}
+ .num{width:30px;height:30px;border-radius:50%;background:var(--soft);color:var(--brand);display:grid;place-items:center;font-weight:700;font-size:.85rem}
+ .nombre{width:100%;padding:9px 10px;border:1px solid var(--line);borderradius:8px;background:#fbfcfe}
+ .nombre:focus{outline:2px solid var(--brand);border-color:transparent}
+ .estados{display:flex;gap:6px}
+ .op{position:relative}
+ .op input{position:absolute;opacity:0;width:1px;height:1px}
+ .op span{display:block;padding:8px 10px;border:1px solid var(--line);borderradius:8px;font-size:.84rem;color:var(--muted);background:#fff;user-select:none;minwidth:40px;text-align:center}
+ .op span:hover{border-color:#b9c4d4}
+ .op input:focus-visible + span{outline:2px solid var(--brand);outline-offset:1px} .op-presente input:checked + span{background:var(--pres);border-color:var(--
+pres);color:#fff}
+ .op-tarde input:checked + span{background:var(--tarde);border-color:var(--
+tarde);color:#fff}
+ .op-ausente input:checked + span{background:var(--aus);border-color:var(--
+aus);color:#fff}
+ .op-excusa input:checked + span{background:var(--exc);border-color:var(--
+exc);color:#fff}
+ .corto{display:none}
+ .pie{display:flex;justify-content:flex-end;padding:14px 16px 4px;border-top:1px solid var(--line)}
+ @media (max-width:640px){
+ .lista-head{display:none}
+ .fila{grid-template-columns:34px 1fr;row-gap:8px;padding:10px 12px}
+ .estados{grid-column:1 / -1;display:grid;grid-template-columns:repeat(4,1fr)} .op span{padding:9px 4px}
+ .toolbar .campo{min-width:0;width:100%}
+ }
+ @media (max-width:380px){ .largo{display:none} .corto{display:inline} }
+</style>
+</head>
+<body>
+<!-- ================= INICIO DE SESIÓN / REGISTRO ================= -->
+<section id="vista-auth" class="auth-wrap">
+ <div class="auth">
+ <div class="auth-head">
+ <h1>Registro de Asistencia</h1>
+ <p>Acceso para docentes</p>
+ </div>
+ <div class="tabs" role="tablist">
+ <button class="tab activo" data-tab="login" role="tab">Iniciar sesión</button> <button class="tab" data-tab="registro" role="tab">Registrarse</button>
+ </div>
+ <div id="aviso-config" class="config hidden">
+ Falta conectar la página con Supabase: abre <b>index.html</b> y pega tu
+ <b>Project URL</b> y tu <b>anon key</b> en las dos líneas marcadas al inicio del código.
+ </div>
+ <p id="auth-msg" class="msg hidden" role="alert"></p>
+ <form id="form-login" class="auth-form">
+ <label class="campo">Correo electrónico
+ <input id="login-correo" type="email" autocomplete="email" required>
+ </label>
+ <label class="campo">Contraseña
+ <input id="login-clave" type="password" autocomplete="current-password" required>
+ </label>
+ <button class="btn btn-primario" type="submit">Entrar</button>
+ </form>
+ <form id="form-registro" class="auth-form hidden">
+ <label class="campo">Nombre completo
+ <input id="reg-nombre" type="text" autocomplete="name" maxlength="80"
+required>
+ </label>
+ <label class="campo">Correo electrónico
+ <input id="reg-correo" type="email" autocomplete="email" required>
+ </label>
+ <label class="campo">Contraseña (mínimo 6 caracteres)
+ <input id="reg-clave" type="password" autocomplete="new-password"
+minlength="6" required>
+ </label>
+ <label class="campo">Confirmar contraseña
+ <input id="reg-clave2" type="password" autocomplete="new-password"
+minlength="6" required>
+ </label>
+ <button class="btn btn-primario" type="submit">Crear cuenta</button>
+ </form>
+ </div>
+</section>
+<!-- ================= FORMULARIO DE ASISTENCIA ================= -->
+<section id="vista-app" class="hidden">
+ <header class="barra">
+ <div class="barra-in">
+ <div>
+ <h1>Registro de Asistencia</h1>
+ <small id="docente-nombre"></small>
+ </div>
+ <button id="btn-salir" class="btn btn-borde">Cerrar sesión</button>
+ </div>
+ </header>
+ <main>
+ <div class="panel">
+ <div class="toolbar">
+ <label class="campo">Fecha de la clase
+ <input id="fecha" type="date" required>
+ </label>
+ <div class="acciones">
+ <button id="btn-todos" class="btn btn-sec" type="button">Todos
+presentes</button>
+ <button id="btn-limpiar" class="btn btn-sec" type="button">Limpiar
+marcas</button>
+ <button id="btn-guardar" class="btn btn-primario" type="button">Guardar asistencia</button>
+ </div>
+ </div>
+ <p id="fecha-larga" class="fecha-larga"></p>
+ <div class="resumen" id="resumen"></div>
+ <p id="estado-msg" class="msg hidden" role="status" style="marginleft:0;margin-right:0"></p>
+ </div>
+ <div class="panel" style="margin-top:16px;padding:0">
+ <div class="listahead"><span>Nº</span><span>Estudiante</span><span>Asistencia</span></div>
+ <div id="lista"></div>
+ <div class="pie">
+ <button id="btn-guardar2" class="btn btn-primario" type="button">Guardar asistencia</button>
+ </div>
+ </div>
+ </main>
+</section>
+<script>
+/* =====================================================================
+ CONFIGURACIÓN: pega aquí los datos de tu proyecto de Supabase
+ (Supabase > Project Settings > API)
+ ===================================================================== */
+const SUPABASE_URL = 'https://TU-PROYECTO.supabase.co'; // <-- Project URLconst SUPABASE_ANON_KEY = 'TU-ANON-KEY'; // <-- anon /
+publishable key
+/* ===================================================================== */
+const TOTAL = 25;
+const ESTADOS = [
+ ['presente', 'Presente', 'P'],
+ ['tarde', 'Tarde', 'T'],
+ ['ausente', 'Ausente', 'A'],
+ ['excusa', 'Excusa', 'E']
+];
+const $ = s => document.querySelector(s);
+const configurado = https://ekbryzykxdcvqoqpzybk.supabase.co
+!SUPABASE_ANON_KEY.includes('TU-ANON');
+const db = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVrYnJ5enlreGRjdnFvcXB6eWJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2NzM3ODcsImV4cCI6MjEwODI0OTc4N30.bTQvPtWzsMvIrCl_Ko23hjPTB3hRG_WIdxzonat6ZTcSUPABASE_ANON_KEY) : null;
+let usuario = null;
+let iniciado = false;
+/* ---------- utilidades ---------- */
+function hoy(){
+ const d = new Date();
+ d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+ return d.toISOString().slice(0, 10);
+}
+function formatear(fecha){
+ return new Date(fecha + 'T12:00:00').toLocaleDateString('es-DO',
+ { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+}
+function mostrarMsg(el, texto, tipo = 'error'){
+ el.textContent = texto;
+ el.className = 'msg ' + tipo;
+}
+function traducir(m){
+ const t = {
+ 'Invalid login credentials': 'Correo o contraseña incorrectos.',
+ 'User already registered': 'Ese correo ya está registrado.',
+ 'Email not confirmed': 'Debes confirmar tu correo antes de entrar. Revisa tu bandeja de entrada.',
+ 'Password should be at least 6 characters.': 'La contraseña debe tener al menos 6 caracteres.'
+ };
+ return t[m] || m;
+}
+const authMsg = $('#auth-msg');
+const estadoMsg = $('#estado-msg');
+const estado = (texto, tipo = 'info') => mostrarMsg(estadoMsg, texto, tipo);
+/* ---------- pestañas login / registro ---------- */
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => { document.querySelectorAll('.tab').forEach(x => x.classList.toggle('activo', x === b));
+ $('#form-login').classList.toggle('hidden', b.dataset.tab !== 'login');
+ $('#form-registro').classList.toggle('hidden', b.dataset.tab !== 'registro');
+ authMsg.className = 'msg hidden';
+}));
+/* ---------- registro ---------- */
+$('#form-registro').addEventListener('submit', async e => {
+ e.preventDefault();
+ if (!db) return;
+ const nombre = $('#reg-nombre').value.trim();
+ const correo = $('#reg-correo').value.trim();
+ const clave = $('#reg-clave').value;
+ const clave2 = $('#reg-clave2').value;
+ if (clave.length < 6) return mostrarMsg(authMsg, 'La contraseña debe tener al menos 6 caracteres.');
+ if (clave !== clave2) return mostrarMsg(authMsg, 'Las contraseñas no coinciden.'); const btn = e.submitter; btn.disabled = true;
+ const { data, error } = await db.auth.signUp({
+ email: correo, password: clave, options: { data: { nombre } }
+ });
+ btn.disabled = false;
+ if (error) return mostrarMsg(authMsg, traducir(error.message));
+ e.target.reset();
+ if (!data.session) {
+ mostrarMsg(authMsg, 'Cuenta creada. Revisa tu correo para confirmarla y luego inicia sesión.', 'ok');
+ }
+});
+/* ---------- inicio de sesión ---------- */
+$('#form-login').addEventListener('submit', async e => {
+ e.preventDefault();
+ if (!db) return;
+ const btn = e.submitter; btn.disabled = true;
+ const { error } = await db.auth.signInWithPassword({
+ email: $('#login-correo').value.trim(),
+ password: $('#login-clave').value
+ });
+ btn.disabled = false;
+ if (error) mostrarMsg(authMsg, traducir(error.message));
+});
+/* ---------- cerrar sesión ---------- */
+$('#btn-salir').addEventListener('click', async () => { await db.auth.signOut(); });/* ---------- cambio de vista según la sesión ---------- */
+function mostrar(sesion){
+ if (sesion) {
+ usuario = sesion.user;
+ $('#vista-auth').classList.add('hidden');
+ $('#vista-app').classList.remove('hidden');
+ $('#docente-nombre').textContent = 'Docente: ' + (usuario.user_metadata?.nombre || usuario.email);
+ if (!iniciado) { iniciado = true; cargar(); }
+ } else {
+ usuario = null; iniciado = false;
+ $('#vista-app').classList.add('hidden');
+ $('#vista-auth').classList.remove('hidden');
+ $('#form-login').reset();
+ }
+}
+/* ---------- construir las 25 filas ---------- */
+function construirFilas(){
+ const cont = $('#lista');
+ cont.innerHTML = '';
+ for (let n = 1; n <= TOTAL; n++) {
+ const fila = document.createElement('div');
+ fila.className = 'fila';
+ fila.dataset.numero = n;
+ fila.innerHTML = `
+ <span class="num">${n}</span>
+ <input class="nombre" type="text" maxlength="80" placeholder="Nombre del
+estudiante ${n}"
+ aria-label="Nombre del estudiante ${n}">
+ <div class="estados" role="radiogroup" aria-label="Asistencia del estudiante ${n}">
+ ${ESTADOS.map(([v, t, c]) => `
+ <label class="op op-${v}" title="${t}">
+ <input type="radio" name="e${n}" value="${v}">
+ <span><b class="largo">${t}</b><b class="corto">${c}</b></span>
+ </label>`).join('')}
+ </div>`;
+ cont.appendChild(fila);
+ }
+}
+const fila = n => document.querySelector(`.fila[data-numero="${n}"]`);
+function limpiarTodo(){
+ document.querySelectorAll('.fila').forEach(f => {
+ f.classList.remove('falta');
+ f.querySelector('.nombre').value = '';
+ f.querySelectorAll('input[type=radio]').forEach(r => r.checked = false);
+ });
+}
+function actualizarResumen(){
+ const cuenta = { presente:0, tarde:0, ausente:0, excusa:0 };
+ let conNombre = 0;
+ document.querySelectorAll('.fila').forEach(f => {
+ if (f.querySelector('.nombre').value.trim()) conNombre++;
+ const m = f.querySelector('input[type=radio]:checked');
+ if (m) cuenta[m.value]++;
+ });
+ $('#resumen').innerHTML =
+ `<span class="chip">Estudiantes <b>${conNombre}</b></span>` +
+ ESTADOS.map(([v, t]) => `<span class="chip
+${v}">${t}<b>${cuenta[v]}</b></span>`).join('');
+}
+/* ---------- cargar datos de la fecha ---------- */
+async function cargar(){
+ const fecha = $('#fecha').value;
+ if (!fecha || !usuario) return;
+ $('#fecha-larga').textContent = formatear(fecha);
+ estado('Cargando…');
+ limpiarTodo();
+ // Asistencia de la fecha elegida + la lista de nombres de la última fecha
+registrada
+ const [asi, ultima] = await Promise.all([
+ db.from('asistencia').select('numero,estudiante,estado').eq('fecha', fecha), db.from('asistencia').select('fecha').order('fecha', { ascending: false
+}).limit(1)
+ ]);
+ let err = asi.error || ultima.error;
+ if (!err && !asi.data.length && ultima.data.length) {
+ const prev = await db.from('asistencia').select('numero,estudiante').eq('fecha', ultima.data[0].fecha);
+ err = prev.error;
+ if (!err) prev.data.forEach(r => { const f = fila(r.numero); if (f)
+f.querySelector('.nombre').value = r.estudiante; });
+ }
+ if (err) { actualizarResumen(); return estado('Error al cargar: ' + err.message, 'error'); }
+ asi.data.forEach(r => {
+ const f = fila(r.numero); if (!f) return;
+ f.querySelector('.nombre').value = r.estudiante;
+ const rb = f.querySelector(`input[value="${r.estado}"]`);
+ if (rb) rb.checked = true;
+ });
+ actualizarResumen();
+ estado(asi.data.length
+ ? `Asistencia guardada encontrada: ${asi.data.length} registros.`
+ : 'Aún no hay asistencia guardada para esta fecha.', 'info');
+}
+/* ---------- guardar ---------- */
+async function guardar(){
+ const fecha = $('#fecha').value;
+ if (!fecha) return estado('Selecciona una fecha.', 'error');
+ const estudiantes = [], asistencia = [], sinEstado = [], sinNombre = [];
+ document.querySelectorAll('.fila').forEach(f => {
+ const n = +f.dataset.numero;
+ const nombre = f.querySelector('.nombre').value.trim();
+ const marcado = f.querySelector('input[type=radio]:checked');
+ f.classList.remove('falta');
+ if (nombre) estudiantes.push(n);
+ if (nombre && marcado) {
+ asistencia.push({ docente_id: usuario.id, fecha, numero: n, estudiante: nombre, estado: marcado.value });
+ } else if (nombre && !marcado) { sinEstado.push(n); f.classList.add('falta'); } else if (!nombre && marcado) { sinNombre.push(n); f.classList.add('falta'); } });
+ if (!estudiantes.length) return estado('Escribe al menos el nombre de un
+estudiante.', 'error');
+ if (sinNombre.length) return estado(`Falta el nombre en la(s) fila(s):
+${sinNombre.join(', ')}.`, 'error');
+ if (sinEstado.length) return estado(`Falta marcar la asistencia de la(s) fila(s): ${sinEstado.join(', ')}.`, 'error');
+ const botones = [$('#btn-guardar'), $('#btn-guardar2')];
+ botones.forEach(b => b.disabled = true);
+ estado('Guardando…');
+ const nums = estudiantes.join(',');
+ const pasos = [
+ () => db.from('asistencia').upsert(asistencia, { onConflict:
+'docente_id,fecha,numero' }),
+ () => db.from('asistencia').delete().eq('docente_id', usuario.id).eq('fecha', fecha).not('numero', 'in', `(${nums})`)
+ ];
+ let error = null;
+ for (const paso of pasos) {
+ const r = await paso();
+ if (r.error) { error = r.error; break; }
+ }
+ botones.forEach(b => b.disabled = false);
+ if (error) return estado('No se pudo guardar: ' + error.message, 'error');
+ estado(`Asistencia del ${formatear(fecha)} guardada (${asistencia.length}
+estudiantes).`, 'ok');
+}
+/* ---------- eventos del formulario ---------- */
+$('#fecha').addEventListener('change', cargar);
+$('#btn-guardar').addEventListener('click', guardar);
+$('#btn-guardar2').addEventListener('click', guardar);
+$('#btn-todos').addEventListener('click', () => {
+ document.querySelectorAll('.fila').forEach(f => {
+ if (f.querySelector('.nombre').value.trim())
+f.querySelector('input[value="presente"]').checked = true;
+ });
+ actualizarResumen();
+});
+$('#btn-limpiar').addEventListener('click', () => {
+ document.querySelectorAll('.fila input[type=radio]').forEach(r => r.checked = false);
+ actualizarResumen();
+});
+$('#lista').addEventListener('input', actualizarResumen);
+$('#lista').addEventListener('change', actualizarResumen);
+$('#lista').addEventListener('keydown', e => {
+ if (e.key === 'Enter' && e.target.classList.contains('nombre')) {
+ e.preventDefault();
+ const sig = fila(+e.target.closest('.fila').dataset.numero + 1);
+ if (sig) sig.querySelector('.nombre').focus();
+ }
+});
+/* ---------- arranque ---------- */
+construirFilas();
+$('#fecha').value = hoy();
+actualizarResumen();
+if (!db) {
+ $('#aviso-config').classList.remove('hidden');
+ document.querySelectorAll('.auth-form button').forEach(b => b.disabled = true);} else {
+ db.auth.onAuthStateChange((_evento, sesion) => setTimeout(() => mostrar(sesion), 0));
+}
+</script>
+</body>
+</html>
